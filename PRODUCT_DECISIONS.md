@@ -37,6 +37,12 @@ short screens (intro, address, basics, condition, situation, timeline, contact,
 review, booking decision, thank-you) each ask one thing, show `Step N of 8`
 progress, and allow going back.
 
+The eight numbered steps sit on seven routes: address and basics share
+`/sell-my-house/property`, distinguished by a `?stage=basics` parameter. That
+keeps the agreed URL structure while still giving each question its own screen,
+and using a query parameter rather than component state means the browser Back
+button does what a homeowner expects.
+
 ### Almost everything is optional
 
 Only contact details and enough location information to tell whether the
@@ -77,6 +83,57 @@ The homeowner sees a next step, never a score, a tier, or the logic. Publishing
 it would invite gaming and, worse, would tell someone their circumstances scored
 them poorly.
 
+This is enforced, not just intended: the submit action returns a `bookable`
+boolean and nothing else, and the browser e2e check fails if any scoring
+vocabulary appears in the rendered page or the session handoff.
+
+### Photos are asked for after submission, not during
+
+Uploading files is the slowest step in any mobile form and the easiest place to
+lose someone. The condition screen says photos are welcome and that we will ask
+later; the thank-you screen actually invites them. Nobody has to go hunting
+through their camera roll while a half-finished form waits.
+
+### Validation runs on submit, not on every keystroke
+
+Correcting someone's phone number while they are still typing it is hostile,
+and error text that appears and vanishes is worse than none. Errors appear when
+a step is submitted, focus moves to the first field that needs attention, and
+the message clears as soon as that field changes.
+
+Every required field also carries its own wording for the case where it was
+never touched at all. Zod's default there is "Invalid input: expected string,
+received undefined", which is unacceptable on a form asking about a divorce —
+a regression test asserts no schema can produce developer language.
+
+### Nothing is stored server-side before consent
+
+The draft lives in `localStorage` until the contact step. Before someone has
+given us their details and agreed to be contacted, we have not been invited to
+keep anything, so we do not. It also means a refresh or an interruption does
+not lose their progress — which matters, because the people filling in this
+form are frequently distracted.
+
+Once the lead is submitted, the local draft is deleted.
+
+### Post-submission actions use a capability token, not a lead ID
+
+The booking and request-a-call actions need to name a lead. Putting the lead ID
+in the browser would let anyone enumerate UUIDs and attach appointment requests
+to other people's leads, and a public "read this lead" endpoint would be worse.
+
+So the submit action issues a short-lived HMAC-signed token binding the lead ID
+to an expiry, and the follow-up actions accept only that. There is no public
+endpoint that reads a lead.
+
+### Bot mitigation, but no CAPTCHA
+
+A honeypot field and a minimum time-on-form check, both invisible. No CAPTCHA:
+someone in the middle of a foreclosure should not have to solve a puzzle to
+reach us, and a CAPTCHA would exclude some people entirely. The time check is
+deliberately forgiving — a missing or future-dated start time is allowed
+through rather than blocking a real person whose clock is wrong.
+
 ---
 
 ## Lead scoring
@@ -111,6 +168,23 @@ religion, sex, familial status, national origin, or disability, and no proxy for
 any of them. This is a hard constraint on the schema, not a preference. Scoring
 inputs are limited to property attributes, timeline, decision-making structure,
 and service-area coverage.
+
+### Overlapping signals score once
+
+Someone who ticks "financial pressure", "behind on payments", and "avoiding
+foreclosure" is describing one situation, not three, so those three motivations
+award their points once. Similarly, a vacant occupancy and a "property is
+vacant" motivation are the same fact arriving twice.
+
+"Just exploring" is only held against a lead when it is not paired with a
+concrete timeline — someone exploring options *and* needing to move within 30
+days is not a low-intent lead.
+
+### Scoring starts at 50, not 0
+
+A lead with no strong signal either way should land in Warm and get worked, not
+sink to the bottom of the pipeline because it failed to trigger anything. The
+baseline is 50, signals move it from there, and the total is clamped to 0–100.
 
 ### Signals that flag rather than disqualify
 

@@ -2,7 +2,7 @@
 
 How Home Sweet Home protects homeowner information and internal deal data.
 
-This describes what is built as of **Phase 1**. Sections covering modules not
+This describes what is built as of **Phase 2**. Sections covering modules not
 yet built state the design that later phases must implement, and say so
 explicitly.
 
@@ -78,7 +78,9 @@ editing a URL, or calling the REST API directly with the anon key gains nothing:
 the database refuses.
 
 RLS is enabled on **every** table in the `public` schema, each with explicit
-policies. The `anon` role additionally has all privileges revoked on internal
+policies, and this is asserted rather than assumed — `npm run test:rls` applies
+every migration to a throwaway Postgres and checks both the policy behaviour
+and that no table is left unprotected. The `anon` role additionally has all privileges revoked on internal
 tables, so an anonymous caller is denied at the grant level before policies are
 even evaluated.
 
@@ -163,7 +165,12 @@ policy for any authenticated role. Entries can only be written by the service
 role, and can never be edited or deleted through the API by anyone.
 
 Logged today: sign-in, failed sign-in, sign-out, password reset requested,
-password changed.
+password changed, lead created from the public funnel, and appointment
+requested from the funnel.
+
+Lead audit entries carry the reference, tier, service-area match, and rule
+version — identifiers and outcomes, never the seller's name, contact details,
+or the free text they wrote.
 
 Logged as the relevant modules land: lead status changes, assignment changes,
 contract status changes, document uploads and downloads, data exports, role
@@ -192,19 +199,80 @@ message bodies, or credentials — identifiers and changed field names only.
   separately from general contact consent.
 - **Fair housing.** No protected characteristic is collected anywhere, and none
   may ever be added to the scoring model. Scoring inputs are restricted to
-  property attributes, timeline, and service-area coverage.
+  property attributes, timeline, decision-making structure, contact
+  completeness, and service-area coverage. `tests/scoring.test.ts` asserts the
+  permitted input list explicitly, so adding a demographic field to
+  `ScoringInput` fails the suite, and separately asserts that no signal key or
+  label names a protected characteristic.
 - **Soft deletion.** CRM records archive (`archived_at`) rather than hard-delete,
   preserving the trail.
 
 ---
 
-## Public endpoint protection *(design; implemented in Phase 2)*
+## Public endpoint protection
 
 The public lead submission endpoint is the only internet-facing write path, so
-it gets: a honeypot field, a minimum time-on-form check, IP-based rate limiting,
-strict Zod validation server-side, and size caps on every free-text field. It
-writes through the service-role client with a fixed, server-constructed insert —
-no user-supplied column or filter ever reaches the query.
+it carries every control at once:
+
+- **Rate limiting** per hashed IP (5 submissions per 10 minutes), applied
+  before any other work.
+- **A honeypot field** (`company_website`) that is off-screen, `aria-hidden`,
+  and `tabindex="-1"`, so no person and no screen reader will ever fill it.
+- **A minimum time-on-form check** (3 seconds). Deliberately forgiving: a
+  missing, unparseable, or future-dated start time is allowed through rather
+  than blocking someone whose clock or storage misbehaved.
+- **Strict server-side Zod validation** with size caps on every free-text
+  field, re-run on the server regardless of what the client checked.
+- **A fully server-constructed insert.** No user-supplied column name, table,
+  or filter reaches a query; the payload is parsed into a known shape and each
+  field is written explicitly.
+- **One generic failure message.** A rejected bot is never told which check
+  caught it.
+
+It writes through the service-role client because the submitter is anonymous
+and `anon` has no privileges on these tables at all.
+
+> **Known limitation.** Rate limiting is in-process
+> (`src/lib/security/rate-limit.ts`). On serverless each instance keeps its own
+> counters, so the effective limit is higher than configured. Swap it for a
+> shared store before launch; the interface is narrow so the change is local.
+
+## Post-submission capability tokens
+
+After submitting, a homeowner can request a call or an appointment. Those
+actions need to name their lead — but a raw lead ID in the browser would let
+anyone enumerate UUIDs and attach appointments to other people's leads.
+
+So the submit action issues an **HMAC-signed token** binding the lead ID to an
+expiry (2 hours), and the follow-up action accepts only that token. Signature
+comparison is constant-time and length-checked; expiry is validated after the
+signature so nothing is learned from the ordering. The token grants exactly one
+narrow capability and reveals nothing about the lead.
+
+There is no public endpoint that reads a lead by ID, deliberately.
+
+## What the browser is never told
+
+The lead score is internal. The submit action returns a **`bookable` boolean
+and nothing else** — no score, no tier, no reason breakdown, no thresholds.
+`scripts/funnel-e2e.mjs` asserts that no scoring vocabulary appears in the
+rendered page or in the sessionStorage handoff, so a future change that leaks
+it fails the suite.
+
+The homeowner sees a next step. They never see a number, and they are never
+told that a heuristic ranked them.
+
+## Consent as evidence
+
+Consent records are **append-only**. `lead_consents` has a read policy for
+users who can read the lead and *no* update or delete policy for anyone, so a
+consent record cannot be altered or removed through the API — verified by
+`npm run test:rls`.
+
+Each row stores the exact wording agreed to, the policy version in effect, the
+timestamp, a hashed IP, and the user agent. Contact consent and SMS consent are
+separate rows: bundling them would make the SMS consent worthless for TCPA
+purposes. Neither box is ever pre-checked.
 
 ---
 

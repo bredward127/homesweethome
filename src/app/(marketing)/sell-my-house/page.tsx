@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Clock, Phone, Mail, ShieldCheck } from "lucide-react";
+import { Clock, Phone, ShieldCheck } from "lucide-react";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -36,9 +36,9 @@ export default function SellMyHousePage() {
             Let&rsquo;s learn a little about your home.
           </h1>
           <p className="text-lg leading-relaxed text-ink-600">
-            Share a few details about the property and your situation. A local specialist reviews
-            it, calls you at a time that suits, and talks you through the options &mdash; including
-            the ones that do not involve us.
+            Answer a few questions about the property and your situation. A local specialist
+            reviews your answers, calls you at a time that suits, and talks you through the options
+            &mdash; including the ones that do not involve us.
           </p>
 
           <ul className="flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:gap-x-6">
@@ -51,13 +51,12 @@ export default function SellMyHousePage() {
           </ul>
 
           <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
-            <ButtonLink href={`tel:${siteConfig.phoneHref}`} size="lg">
-              <Phone aria-hidden="true" />
-              Call {siteConfig.phoneDisplay}
+            <ButtonLink href="/sell-my-house/start" size="lg">
+              Get Started
             </ButtonLink>
-            <ButtonLink href={`mailto:${siteConfig.email}`} size="lg" variant="secondary">
-              <Mail aria-hidden="true" />
-              Email us
+            <ButtonLink href={`tel:${siteConfig.phoneHref}`} size="lg" variant="secondary">
+              <Phone aria-hidden="true" />
+              Or call {siteConfig.phoneDisplay}
             </ButtonLink>
           </div>
 
@@ -71,7 +70,7 @@ export default function SellMyHousePage() {
             align="left"
             eyebrow="Before you start"
             title="What we will ask about"
-            description="Nothing here is mandatory. Share only what you are comfortable sharing — it simply helps us prepare for a more useful conversation."
+            description="Most questions are optional. Share only what you are comfortable sharing — it simply helps us prepare for a more useful conversation."
           />
           <ul className="mt-8 flex flex-col gap-3">
             {whatWeAsk.map((item) => (
@@ -132,9 +131,8 @@ export default function SellMyHousePage() {
             too.
           </p>
           <div className="flex flex-col gap-3 sm:flex-row">
-            <ButtonLink href={`tel:${siteConfig.phoneHref}`} size="lg" variant="clay">
-              <Phone aria-hidden="true" />
-              Call {siteConfig.phoneDisplay}
+            <ButtonLink href="/sell-my-house/start" size="lg" variant="clay">
+              Get Started
             </ButtonLink>
             <ButtonLink href="/contact" size="lg" variant="outline" className="text-cream-100 ring-cream-400/40 hover:bg-cream-50/10">
               Other ways to reach us

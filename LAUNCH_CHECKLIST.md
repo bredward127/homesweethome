@@ -65,6 +65,11 @@ must be done before launch · **[Verify]** confirm rather than build.
       where schemaname = 'public' and rowsecurity = false;
       ```
       This must return **zero rows**.
+- [ ] **[Verify]** Run `npm run test:rls` and confirm all assertions pass. It
+      applies every migration to a throwaway Postgres and checks the policy
+      behaviour, including that a closing specialist cannot reach another
+      specialist's lead and that audit and consent records cannot be forged or
+      rewritten.
 - [ ] **[Blocker]** Review **Database → Advisors** in Supabase and resolve every
       security finding.
 - [ ] **[Blocker]** Confirm the `anon` role cannot read any internal table.
@@ -128,7 +133,10 @@ must be done before launch · **[Verify]** confirm rather than build.
 ## 6. Integrations
 
 - [ ] **[Required]** Configure the **booking provider** (`CALENDLY_URL`) and
-      complete a real end-to-end booking.
+      complete a real end-to-end booking. The URL must be `https`; the app
+      falls back to in-app requests otherwise.
+- [ ] **[Required]** Replace the **demo appointment slots** with real
+      availability, or configure a booking provider so they are not used.
 - [ ] **[Required]** Confirm the **fallback** path works with the booking
       provider removed — an appointment-request task must be created in the CRM.
 - [ ] **[Required]** Configure **email** (`RESEND_API_KEY`,
@@ -155,8 +163,25 @@ must be done before launch · **[Verify]** confirm rather than build.
       ```bash
       curl -sI https://<domain>/app/dashboard | grep -iE "x-robots-tag|cache-control"
       ```
+- [ ] **[Blocker]** **Replace the in-process rate limiter.**
+      `src/lib/security/rate-limit.ts` keeps counters in memory, which does not
+      hold across serverless instances. Swap it for a shared store (Upstash
+      Redis, Vercel KV, or a Postgres table with a TTL) before taking real
+      traffic.
 - [ ] **[Required]** Test the **honeypot and rate limiting** on the public lead
-      endpoint. Confirm rapid repeat submissions are throttled.
+      endpoint. Confirm rapid repeat submissions are throttled and that a
+      submission with the honeypot filled is rejected.
+- [ ] **[Required]** Add a dedicated `LEAD_TOKEN_SECRET` rather than reusing
+      `SUPABASE_SERVICE_ROLE_KEY` to sign capability tokens, so rotating one
+      does not silently invalidate the other.
+- [ ] **[Verify]** Run `npm run test:e2e` against a production-like build and
+      confirm all checks pass, including that no lead score or tier reaches the
+      browser.
+- [ ] **[Required]** Confirm the **funnel draft is cleared** after submission
+      and that no seller answers remain in `localStorage`.
+- [ ] **[Required]** Review **consent records** after a test submission:
+      confirm separate `contact` and `sms` rows, the correct policy version,
+      the exact consent wording, and a hashed (not raw) IP.
 - [ ] **[Required]** Test **password reset** end to end on the production
       domain.
 - [ ] **[Required]** Confirm **session expiry** behaves: an expired session must

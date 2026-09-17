@@ -11,13 +11,14 @@ The product is two experiences in one codebase:
   leads, properties, contracts, and dispositions. Nothing under it is reachable
   without an authenticated, role-bearing account.
 
-> **Status: Phase 1 complete.** The foundation is in place — design system,
-> Supabase scaffolding, authentication, role-based authorization, the Phase 1
-> schema with Row Level Security, and the public marketing pages. The seller
-> funnel, lead capture, scoring, and the CRM modules are built in the phases
-> that follow. See [PRODUCT_DECISIONS.md](./PRODUCT_DECISIONS.md) for what is
-> decided and [LAUNCH_CHECKLIST.md](./LAUNCH_CHECKLIST.md) for what must happen
-> before this goes live.
+> **Status: Phase 2 complete.** The foundation (design system, Supabase,
+> authentication, role-based authorization, RLS, public pages) plus the full
+> ten-screen seller funnel, lead capture, attribution, explainable lead
+> scoring, and the booking decision flow. The CRM modules — lead pipeline,
+> properties, contracts, documents, dispositions, reports — are built in the
+> phases that follow. See [PRODUCT_DECISIONS.md](./PRODUCT_DECISIONS.md) for
+> what is decided and [LAUNCH_CHECKLIST.md](./LAUNCH_CHECKLIST.md) for what
+> must happen before this goes live.
 
 ---
 
@@ -163,8 +164,22 @@ npx supabase gen types typescript --project-id <ref> > src/lib/supabase/database
 
 ### Verifying RLS is on
 
-Row Level Security is the real access boundary, so confirm it rather than
-assuming it:
+Row Level Security is the real access boundary, so it is verified against a
+real database rather than reviewed by eye:
+
+```bash
+npm run test:rls
+```
+
+That spins up a throwaway Postgres, stubs the objects Supabase provides (the
+`auth` schema, `auth.uid()`, and the `anon` / `authenticated` / `service_role`
+roles), applies every migration in order, and asserts what each role can and
+cannot see — including that a closing specialist cannot reach another
+specialist's lead, that the analyst cannot write, that nobody can forge or
+rewrite an audit entry, and that `anon` is refused outright. It needs
+`postgresql-16` on the machine.
+
+Against your actual project, confirm the same thing directly:
 
 ```sql
 select tablename, rowsecurity
@@ -180,11 +195,15 @@ the Supabase dashboard, which flags tables exposed without policies.
 
 ## Seed data
 
-Demo data is introduced in Phase 5, alongside the lead, property, and contract
-tables it populates. It will be a script run with
-`npm run seed`, using the service-role key, and it will only ever be pointed at a
-development project — the entries are fictional and clearly labelled as demo
-content.
+Demo data is introduced in Phase 5, alongside the remaining CRM tables it
+populates. It will be a script run with `npm run seed`, using the service-role
+key, and it will only ever be pointed at a development project — the entries
+are fictional and clearly labelled as demo content.
+
+In the meantime the funnel itself generates realistic records: submitting it
+against a configured Supabase project creates a property, a lead with its
+score and reason breakdown, consent records, a funnel session, and a
+tier-appropriate follow-up task.
 
 ---
 
@@ -226,6 +245,51 @@ content.
    seller details.
 
 ---
+
+## The seller funnel
+
+Ten screens across seven routes under `/sell-my-house`, entered from
+`/sell-my-house/start`. One question per screen, `Step N of 8` progress, Back
+and Continue throughout, and validation on submit rather than on every
+keystroke.
+
+A few behaviours worth knowing about:
+
+- **Nothing is sent to the server until the contact step.** Answers live in
+  `localStorage` on the homeowner's own device until they provide contact
+  details and consent. Refreshing, losing signal, or taking a phone call
+  mid-form does not lose progress.
+- **"I don't have the exact address"** swaps the street field for a
+  description, so an inherited-property enquiry does not dead-end.
+- **The score is never shown, and never leaves the server** beyond a single
+  `bookable` boolean. `scripts/funnel-e2e.mjs` asserts that no score, tier, or
+  scoring vocabulary appears in the page or in the session handoff.
+- **Booking is never gated on score alone.** A "Request a Call" action is
+  available on every path.
+- **Post-submission actions use a signed capability token**, not a lead ID, so
+  an appointment request cannot be pointed at somebody else's lead.
+
+The public submission endpoint is the only internet-facing write path, so it
+carries a honeypot field, a minimum time-on-form check, per-IP rate limiting,
+strict server-side validation, and a fully server-constructed insert.
+
+> **Rate limiting is in-process.** That holds for a single instance but not
+> across serverless instances. Swap `src/lib/security/rate-limit.ts` for a
+> shared store (Upstash Redis, Vercel KV, or a Postgres table with a TTL)
+> before launch — the interface is deliberately narrow so the change touches
+> that file only.
+
+## Lead scoring
+
+Rules live in the `scoring_rules` table as versioned JSON, so an admin can tune
+weights and thresholds without a deploy, and every score records the rule
+version that produced it. Scoring starts from a neutral baseline of 50 and is
+clamped to 0–100; each point awarded carries its own reason, so a score can
+always be shown back to the team as "here is why".
+
+`src/lib/leads/scoring.ts` holds the model and `tests/scoring.test.ts` covers
+it, including the fair-housing constraint: the permitted input list is asserted
+explicitly, so adding a demographic field to `ScoringInput` fails the suite.
 
 ## Booking integration setup
 
@@ -310,8 +374,10 @@ tests/                 Vitest suites
 | `npm start` | Serve the production build |
 | `npm run lint` | ESLint |
 | `npm run typecheck` | `tsc --noEmit` |
-| `npm test` | Vitest, once |
+| `npm test` | Vitest unit tests, once |
 | `npm run test:watch` | Vitest, watching |
+| `npm run test:rls` | Apply every migration to a throwaway Postgres and assert the RLS policies |
+| `npm run test:e2e` | Build, serve, and walk the seller funnel in a real browser |
 
 ---
 
