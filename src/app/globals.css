@@ -1,0 +1,112 @@
+@import "tailwindcss";
+
+/*
+ * Home Sweet Home design tokens.
+ * Warm off-white surfaces, deep navy ink, muted forest/sage accent,
+ * warm clay highlight. Contrast pairings are chosen to clear WCAG AA
+ * for body text (>= 4.5:1) and large text / UI (>= 3:1).
+ */
+@theme {
+  /* Surfaces */
+  --color-cream-50: #fdfcfa;
+  --color-cream-100: #faf7f2;
+  --color-cream-200: #f3eee5;
+  --color-cream-300: #e8e0d3;
+  --color-cream-400: #d6cabb;
+
+  /* Ink (deep navy / charcoal) */
+  --color-ink-500: #5b6676;
+  --color-ink-600: #3d4757;
+  --color-ink-700: #2a3342;
+  --color-ink-800: #1b2430;
+  --color-ink-900: #121924;
+
+  /* Sage / forest accent */
+  --color-sage-50: #f1f6f2;
+  --color-sage-100: #dfeae1;
+  --color-sage-200: #bed5c3;
+  --color-sage-300: #8fb59a;
+  --color-sage-500: #4f8163;
+  --color-sage-600: #3e6b52;
+  --color-sage-700: #305441;
+  --color-sage-800: #24402f;
+
+  /* Warm clay / gold highlight */
+  --color-clay-100: #f8eddd;
+  --color-clay-200: #efd9bd;
+  --color-clay-500: #c08a4e;
+  --color-clay-600: #a3703a;
+  --color-clay-700: #7f552b;
+
+  /* Status */
+  --color-danger-50: #fdf2f2;
+  --color-danger-200: #f6cfcf;
+  --color-danger-600: #b3261e;
+  --color-danger-700: #8f1d17;
+  --color-warn-50: #fdf6e8;
+  --color-warn-200: #f0dcaf;
+  --color-warn-700: #7a5a12;
+  --color-info-50: #eef4fa;
+  --color-info-200: #c6dbef;
+  --color-info-700: #1f4f7a;
+
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --radius-card: 1rem;
+
+  --shadow-card: 0 1px 2px rgb(27 36 48 / 0.04), 0 8px 24px -12px rgb(27 36 48 / 0.12);
+  --shadow-lift: 0 2px 4px rgb(27 36 48 / 0.05), 0 16px 40px -16px rgb(27 36 48 / 0.18);
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--color-cream-100);
+    color: var(--color-ink-800);
+    font-family: var(--font-sans);
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Visible, consistent focus for keyboard users across the whole app. */
+  :focus-visible {
+    outline: 2px solid var(--color-sage-600);
+    outline-offset: 2px;
+    border-radius: 0.25rem;
+  }
+
+  h1, h2, h3, h4 {
+    color: var(--color-ink-900);
+    text-wrap: balance;
+  }
+
+  /* Honour the OS "reduce motion" setting everywhere. */
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer utilities {
+  /* Visually hidden but available to screen readers. */
+  .sr-only-focusable:not(:focus):not(:focus-within) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+  }
+}
